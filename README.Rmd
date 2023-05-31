@@ -3,13 +3,13 @@ title: "Regression Model Selection"
 author: "Douglas Martins"
 date: "`r Sys.Date()`"
 output:
+  pdf_document: default
   html_document:
     keep_md: true
-  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(include=FALSE)
 require(dplyr)
 require(ggpubr)
 require(car)
@@ -27,7 +27,7 @@ So, given that weight and quarter mile time are held constant, manual transmitte
 
 ## Exploratory Analysis
 
-```{r mpg, echo=FALSE, fig.asp = .8, fig.width = 12, out.width = "100%", cache=TRUE}
+```{r mpg, fig.asp = .8, fig.width = 12, out.width = "100%"}
 data(mtcars)
 df <- mtcars
 df$cyl <- as.factor(df$cyl)
@@ -36,80 +36,64 @@ df$am <- factor(df$am)
 df$gear <- factor(df$gear)
 df$carb <- factor(df$carb)
 levels(df$am) <- c('Automatic','Manual')
-summary(df)
-ggpairs(df, lower=list(combo=wrap("facethist", binwidth=0.8)))
 ```
 
-With the above plots its possible to infer that there seems to exist a relationship between fuel economy with “wt”, “disp”, “cyl”, “hp” and "am" (automatic transmission)
+With Figure 1 its possible to infer that there seems to exist a relationship between fuel economy with “wt”, “disp”, “cyl”, “hp” and "am" (automatic transmission)
 
-```{r, echo=FALSE}
-ggplot(data = df, aes(x = am, y = mpg, fill=am)) + 
-        geom_boxplot() +
-        xlab("Transmission") + ggtitle("MPG by Transmission")
-```
+Looking in detail to mpg by transmission (Figure 2) it appears to exist a relationship between type of transmission and the fuel economy of a vehicle as seen above
 
-Looking in detail to mpg by transmission it appears to exist a relationship between type of transmission and the fuel economy of a vehicle as seen above
+Considering there is a close relationship between weight and transmission (Figure 3) we must include the variable in the model as an interaction term (wt*am)
 
-```{r, echo=FALSE}
-ggplot(df, aes(x=wt, y=mpg, group=am, color=am, height=3, width=3)) + geom_point() +  
-        xlab("weight") + ggtitle("MPG vs. Weight by Transmission")
-```
-Considering there is a close relationship between weight and transmission we must include the variable in the model as an interaction term (wt*am)
-
-# Inference
+## Inference
 
 For this step, null hypothesis is made as the MPG of the automatic and manual transmissions are within the same population (assuming the MPG has a normal distribution). Two sample T-tests are used to show it.
 
-```{r}
+```{r, include=TRUE}
 result <- t.test(mpg ~ am,df)
 result$p.value
 
 ```
 
-```{r}
+```{r, include=TRUE}
 result$estimate
 
 ```
 
 Since the p-value is 0.00137, the null hypothesis is rejected. So, automatic and manual transmissions are from different populations. And the mean for MPG of manual transmitted cars is about 7 more than that of automatic transmitted cars.
 
-
-# Model selection
+## Model selection
 
 ```{r}
 fit_all <- lm(mpg ~ .,data=df)
 summary(fit_all)
 ```
-This model has the Residual standard error as 2.833 on 15 degrees of freedom. Adjusted R-squared value is 0.779, so the model can explain about 78% of the variance of the MPG variable. However, none of the coefficients are significant at 0.05 significant level.
+Starting with a model containing all variables, it has the Residual standard error as 2.833 on 15 degrees of freedom. Adjusted R-squared value is 0.779, so the model can explain about 78% of the variance of the MPG variable. However, none of the coefficients are significant at 0.05 significant level.
 
-```{r}
+```{r, include=TRUE}
 sqrt(vif(fit_all))
 ```
 
 When selecting all variables (except model and manufacturer, which are not relevant in this analysis) we can see high amounts for VIF for most of them, leading to a conclusion we might be inflating standard errors in adding unnecessary or correlated variables.
 
-Then, backward selection is used to select some statistically significant variables.
-
-```{r, include=FALSE}
-fit_step <- step(fit_all, k=log(nrow(df)))
-```
+Next, backward selection is used to select some statistically significant variables.
 
 ```{r}
+fit_step <- step(fit_all, k=log(nrow(df)))
 summary(fit_step)
 ```
 
 The model outputted is “mpg ~ wt + qsec + am”. The Residual standard error is 2.459 on 28 degrees of freedom. The Adjusted R-squared value is 0.8336, so the model can explain about 83% of the variance of the MPG variable. All of the coefficients are significant at 0.05 significant level.
 
-In the exploratory step it is shown that there appears to be an interaction term between “wt” variable and “am” variable, since automatic cars are usually heavier than manual cars. Thereby, the following model including the interaction term is generated:
+In the exploratory step it is shown that there appears to be an interaction term between “wt” variable and “am” variable, since automatic cars are usually heavier than manual cars. 
 
 ```{r}
 fit_wt <- update(fit_step, mpg ~ wt*am + qsec)
 summary(fit_wt)
 ```
 
-This model has the Residual standard error as 2.084 on 27 degrees of freedom. The Adjusted R-squared value is 0.8804, so the model can explain about 88% of the variance of the MPG variable. All of the coefficients are significant at 0.05 significant level.
+The new model outputted, addint the interaction term between "am" and "wt" is “mpg ~ wt*am + qsec”. This model has the Residual standard error as 2.084 on 27 degrees of freedom. The Adjusted R-squared value is 0.8804, so the model can explain about 88% of the variance of the MPG variable. All of the coefficients are significant at 0.05 significant level.
 
-For comparison with the step model, a simple model is fitted with "mpg" as the outcome variable and "am" as the predictor
+For comparison with the step model, a simple model is fitted with "mpg" as the outcome variable and "am" as the predictor.
 
 ```{r}
 fit_am <- update(fit_all, mpg ~ am)
@@ -118,27 +102,27 @@ summary(fit_am)
 
 The model is selected with an analysis of the output of the anova function, which computes an analysis of variance (or deviance) tables for the supplied models.
 
-```{r}
+```{r, include=TRUE}
 anova(fit_am,fit_step,fit_wt,fit_all)
 ```
 
 Anova shows that adding an interaction between wt and am appears to be necessary over looking at wt and am without interaction. For steps 3 to 4 there seems to be a negative impact in adding all the others variables, as such that the selected mode is number 3, fit_wt.
 
-```{r}
+```{r, include=TRUE}
 confint(fit_wt)
 ```
 The result shows that when “wt” (weight lb/1000) and “qsec” (quarter mile time) are held constant, cars with manual transmission add 14.079 + (-4.141)*wt more MPG (miles per gallon) on average than cars with automatic transmission. For example, a manual transmitted car that weighs 2000 lbs have 5.8 more MPG than an automatic transmitted car that has both the same weight and quarter mile time. For cars over 3400 lbs the added weight of the automatic transmission shows benefit compared to a car equipped with a manual transmission.
 
-# Residual Analysis
+## Residual Analysis
 
-```{r , fig.asp = .8, fig.width = 12, out.width = "100%"}
-par(mfrow=c(2,2))
-plot(fit_wt)
-```
+Interpreting Figure 4:
 
 a. The Residuals vs Fitted plot shows no consistent pattern, supporting the accuracy of the independence assumption.
+
 b. The Q-Q Residuals plot indicates that the residuals are normally distributed because the points lie closely to the line.
+
 c. The Scale-Location plot confirms the constant variance assumption, as the points are randomly distributed.
+
 d. The Residuals vs Leverage argues that no outliers are present, as all values fall well within the 0.5 bands.
 
 As for the dfbetas, the measure of how much an observation has effected the estimate of a regression coefficient, cooks distance gives a summary of the dfbetas contribution and shows there are no points with orders of magnitudes of difference.
@@ -149,4 +133,32 @@ cooks.distance(fit_wt)
 
 Concluding, the above analyses meet the basic assumptions of linear regression and well answer the questions about the effect of manual vs automatic transmission.
 
+## Appendix: Figures
 
+* Figure 1 Pairs plot
+
+```{r, include=TRUE, cache=TRUE}
+ggpairs(df, lower=list(combo=wrap("facethist", binwidth=0.8)))
+```
+
+* Figure 2 MPG by Transmission
+
+```{r, include=TRUE}
+ggplot(data = df, aes(x = am, y = mpg, fill=am)) + 
+        geom_boxplot() +
+        xlab("Transmission") + ggtitle("MPG by Transmission")
+```
+
+* Figure 3 MPG vs. Weight by Transmission
+
+```{r, include=TRUE}
+ggplot(df, aes(x=wt, y=mpg, group=am, color=am, height=3, width=3)) + geom_point() +  
+        xlab("weight") + ggtitle("MPG vs. Weight by Transmission")
+```
+
+* Figure 4 Residual Analysis
+
+```{r, include=TRUE , fig.asp = .8, fig.width = 12, out.width = "100%"}
+par(mfrow=c(2,2))
+plot(fit_wt)
+```
